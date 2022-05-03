@@ -19,6 +19,8 @@ func RemoveProvider() error {
 }
 
 func InitProvider(paths []string, excludes []string) error {
+	RemoveProvider()
+
 	cmd := exec.Command("git", "secrets", "--install", "-f")
 	err := cmd.Run()
 	if err != nil {
