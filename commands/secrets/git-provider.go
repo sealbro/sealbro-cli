@@ -9,11 +9,12 @@ import (
 )
 
 const gitDirectory = "./.git/"
-const GitConfig = gitDirectory + "config"
+
+//const GitConfig = gitDirectory + "config"
 
 func RemoveProvider() error {
 	gitSecretsSection := "secrets.providers"
-	cmd := exec.Command("git", "config", "--unset", gitSecretsSection)
+	cmd := exec.Command("git", "config", "--global", "--unset", gitSecretsSection)
 
 	return cmd.Run()
 }
@@ -39,7 +40,7 @@ func InitProvider(paths []string, excludes []string) error {
 		builder.WriteString(exclude)
 	}
 
-	cmd = exec.Command("git", "secrets", "--add-provider", "--", builder.String())
+	cmd = exec.Command("git", "secrets", "--add-provider", "--global", "--", builder.String())
 
 	return cmd.Run()
 }

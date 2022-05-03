@@ -66,7 +66,7 @@ func main() {
 					},
 					{
 						Name:  "init",
-						Usage: "initialize git secrets --add-provider",
+						Usage: "initialize git secrets --add-provider --global",
 						Flags: encryptFlags,
 						Action: func(c *cli.Context) error {
 							paths := c.StringSlice("path")
@@ -80,7 +80,7 @@ func main() {
 						Flags: []cli.Flag{
 							&cli.BoolFlag{
 								Name:  "provider",
-								Usage: "remove vault provider from " + secrets.GitConfig,
+								Usage: "remove vault provider from git config --global",
 							},
 							&cli.BoolFlag{
 								Name:  "cache",
