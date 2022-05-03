@@ -1,10 +1,10 @@
 package main
 
 import (
+	"github.com/sealbro/sealbro-cli/commands/secrets"
 	"github.com/urfave/cli/v2"
 	"log"
 	"os"
-	"sealbro-cli/commands/secrets"
 )
 
 func main() {

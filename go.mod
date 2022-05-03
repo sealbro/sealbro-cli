@@ -1,4 +1,4 @@
-module sealbro-cli
+module github.com/sealbro/sealbro-cli
 
 go 1.18
 
