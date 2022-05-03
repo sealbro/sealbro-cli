@@ -17,10 +17,9 @@ type GpgCryptoProvider struct {
 	passphrase []byte
 }
 
-const gitDirectory = "./.git/"
-const appDirectory = gitDirectory + "sealbro/"
-const secretKeyPath = appDirectory + "key.secret"
-const encryptedSecrets = appDirectory + "encrypted.secret"
+const AppDirectory = gitDirectory + "sealbro/"
+const secretKeyPath = AppDirectory + "key.secret"
+const encryptedSecrets = AppDirectory + "encrypted.secret"
 
 func MakeGpgCryptoProvider(passphrase []byte) CryptoProvider {
 	p := &GpgCryptoProvider{
@@ -40,8 +39,8 @@ func (p *GpgCryptoProvider) generateKey() error {
 		return errors.New("it isn't root directory (.git not found)")
 	}
 
-	if _, err := os.Stat(appDirectory); os.IsNotExist(err) {
-		err = os.Mkdir(appDirectory, os.ModePerm)
+	if _, err := os.Stat(AppDirectory); os.IsNotExist(err) {
+		err = os.Mkdir(AppDirectory, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -51,7 +50,10 @@ func (p *GpgCryptoProvider) generateKey() error {
 		// todo add expire check
 		secretKey, err := os.ReadFile(secretKeyPath)
 		if err != nil {
-			os.Remove(secretKeyPath)
+			err = os.Remove(secretKeyPath)
+			if err != nil {
+				return err
+			}
 		} else {
 			p.privateKey = string(secretKey)
 			return nil
@@ -71,9 +73,11 @@ func (p *GpgCryptoProvider) generateKey() error {
 	}
 
 	_, err = create.WriteString(key)
-	create.Close()
+	if err != nil {
+		return err
+	}
 
-	return err
+	return create.Close()
 }
 
 func (p *GpgCryptoProvider) Encrypt(rawText string) error {
@@ -88,9 +92,11 @@ func (p *GpgCryptoProvider) Encrypt(rawText string) error {
 	}
 
 	_, err = create.WriteString(armor)
-	create.Close()
+	if err != nil {
+		return err
+	}
 
-	return err
+	return create.Close()
 }
 
 func (p *GpgCryptoProvider) Decrypt() (string, error) {
@@ -107,5 +113,5 @@ func CleanSecretsCache() error {
 }
 
 func CleanSecretsCacheAll() error {
-	return os.RemoveAll(appDirectory)
+	return os.RemoveAll(AppDirectory)
 }

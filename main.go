@@ -8,20 +8,9 @@ import (
 )
 
 func main() {
-	// * secrets remove
-	// * secrets init --path --excludes
-
 	command := &secrets.SecretCommand{}
 
 	encryptFlags := []cli.Flag{
-		&cli.StringFlag{
-			Name:    "vault-addr",
-			EnvVars: []string{"VAULT_ADDR"},
-		},
-		&cli.StringFlag{
-			Name:    "vault-token",
-			EnvVars: []string{"VAULT_TOKEN"},
-		},
 		&cli.StringFlag{
 			Name:    "passphrase",
 			EnvVars: []string{"SEALBRO_PASSPHRASE"},
@@ -65,7 +54,7 @@ func main() {
 					},
 					{
 						Name:  "verify",
-						Usage: "get, encrypt, decrypt and compare secrets",
+						Usage: "get / encrypt / decrypt and compare secrets",
 						Flags: encryptFlags,
 						Action: func(c *cli.Context) error {
 							passphrase := c.String("passphrase")
@@ -76,10 +65,41 @@ func main() {
 						},
 					},
 					{
-						Name:  "clean",
-						Usage: "clean secrets cache",
+						Name:  "init",
+						Usage: "initialize git secrets --add-provider",
+						Flags: encryptFlags,
 						Action: func(c *cli.Context) error {
-							return secrets.CleanSecretsCacheAll()
+							paths := c.StringSlice("path")
+							excludes := c.StringSlice("exclude")
+
+							return secrets.InitProvider(paths, excludes)
+						},
+					},
+					{
+						Name: "remove",
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:  "provider",
+								Usage: "remove vault provider from " + secrets.GitConfig,
+							},
+							&cli.BoolFlag{
+								Name:  "cache",
+								Usage: "clean and remove vault provider cache from " + secrets.AppDirectory,
+							},
+						},
+						Usage: "clean secrets",
+						Action: func(c *cli.Context) error {
+							isRemoveCache := c.Bool("cache")
+							if isRemoveCache {
+								return secrets.CleanSecretsCacheAll()
+							}
+
+							isRemoveProvider := c.Bool("provider")
+							if isRemoveProvider {
+								return secrets.RemoveProvider()
+							}
+
+							return nil
 						},
 					},
 				},

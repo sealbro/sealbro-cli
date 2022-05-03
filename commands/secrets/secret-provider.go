@@ -4,6 +4,8 @@ import (
 	"errors"
 	vault "github.com/hashicorp/vault/api"
 	"log"
+	"os"
+	"sync"
 	"time"
 )
 
@@ -18,11 +20,12 @@ type VaultSecretProvider struct {
 }
 
 func MakeVaultSecretProvider(paths, excludes []string) SecretProvider {
-
-	// todo check VAULT_ADDR and VAULT_TOKEN environments
-
 	config := vault.DefaultConfig()
 	config.Timeout = time.Second * 10
+
+	if len(os.Getenv("VAULT_ADDR")) == 0 || len(os.Getenv("VAULT_TOKEN")) == 0 {
+		log.Fatalf("VAULT_ADDR or VAULT_TOKEN have not been defined")
+	}
 
 	client, err := vault.NewClient(config)
 	if err != nil {
@@ -42,31 +45,54 @@ func (p *VaultSecretProvider) GetAllSecrets() ([]string, error) {
 		return nil, errors.New("arg path empty")
 	}
 
-	uniqSecrets := make(map[string]struct{})
+	wgVaultRequests := sync.WaitGroup{}
+	secretChan := make(chan string)
+	uniqSecretsChan := make(chan []string)
+	defer close(uniqSecretsChan)
+
+	go collectSecrets(&wgVaultRequests, secretChan, uniqSecretsChan)
 
 	var err error
-	for _, path := range p.paths {
-		errOne := p.getRecursiveUniqSecrets(uniqSecrets, path)
 
-		if err == nil && errOne != nil {
-			err = errOne
+	wgVaultRequests.Add(len(p.paths))
+	for _, path := range p.paths {
+		p.getRecursiveUniqSecrets(&wgVaultRequests, secretChan, path)
+	}
+	wgVaultRequests.Wait()
+	close(secretChan)
+
+	return <-uniqSecretsChan, err
+}
+
+func collectSecrets(wgVaultRequests *sync.WaitGroup, secretChan <-chan string, uniqSecretsChan chan<- []string) {
+	uniqSecrets := make(map[string]struct{})
+
+	for {
+		secret, ok := <-secretChan
+		if !ok {
+			break
 		}
+
+		uniqSecrets[secret] = struct{}{}
+		wgVaultRequests.Done()
 	}
 
 	var secretsList []string
 
-	for value, _ := range uniqSecrets {
+	for value := range uniqSecrets {
 		secretsList = append(secretsList, value)
 	}
 
-	return secretsList, err
+	uniqSecretsChan <- secretsList
 }
 
-func (p *VaultSecretProvider) getRecursiveUniqSecrets(uniqSecrets map[string]struct{}, path string) error {
+func (p *VaultSecretProvider) getRecursiveUniqSecrets(wgVaultRequests *sync.WaitGroup, secretChan chan<- string, path string) {
+	defer wgVaultRequests.Done()
+
 	if path[len(path)-1] != '/' {
 		read, err := p.client.Logical().Read(path)
 		if err != nil {
-			return err
+			log.Fatalf("cann't read secret from vault: %v", err)
 		}
 
 		for key, value := range read.Data {
@@ -74,23 +100,25 @@ func (p *VaultSecretProvider) getRecursiveUniqSecrets(uniqSecrets map[string]str
 				continue
 			}
 
-			uniqSecrets[value.(string)] = struct{}{}
+			wgVaultRequests.Add(1)
+			secretChan <- value.(string)
 		}
 
-		return nil
+		return
 	}
 
 	read, err := p.client.Logical().List(path)
 	if err != nil {
-		return err
+		log.Fatalf("cann't read list from vault: %v", err)
 	}
 
 	if v, ok := read.Data["keys"]; ok {
 		keys := v.([]interface{})
+
+		wgVaultRequests.Add(len(keys))
+
 		for _, key := range keys {
-			p.getRecursiveUniqSecrets(uniqSecrets, path+key.(string))
+			go p.getRecursiveUniqSecrets(wgVaultRequests, secretChan, path+key.(string))
 		}
 	}
-
-	return nil
 }
