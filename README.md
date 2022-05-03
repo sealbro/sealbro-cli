@@ -21,6 +21,8 @@ Stdout vault provider for [git-secrets](https://github.com/awslabs/git-secrets)
 
 - export variables from `.env` file
   - `export $(grep -v '^#' .env | xargs -0)`
+- macos set global environments zsh
+  - `echo "export SEALBRO_PASSPHRASE=<passphrase>" > ~/.zshenv`
 - uninstall module after `go install`
   - `rm -rf ~/go/bin/sealbro-cli`
 - remove from git config
