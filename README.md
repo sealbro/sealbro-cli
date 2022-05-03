@@ -2,7 +2,7 @@
 
 Helpful CLI makes your daily programming routine simpler and safer
 
-`go install github.com/sealbro/sealbro-cli@latest`
+`go install -v github.com/sealbro/sealbro-cli@latest`
 
 ## sealbro-cli secrets -h
 
