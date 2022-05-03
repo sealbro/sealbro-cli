@@ -1,6 +1,9 @@
 package secrets
 
 import (
+	"errors"
+	"log"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -16,6 +19,12 @@ func RemoveProvider() error {
 }
 
 func InitProvider(paths []string, excludes []string) error {
+	cmd := exec.Command("git", "secrets", "--install", "-f")
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
 	builder := strings.Builder{}
 	builder.WriteString("sealbro-cli secrets show")
 	for _, path := range paths {
@@ -28,7 +37,13 @@ func InitProvider(paths []string, excludes []string) error {
 		builder.WriteString(exclude)
 	}
 
-	cmd := exec.Command("git", "secrets", "--add-provider", "--", builder.String())
+	cmd = exec.Command("git", "secrets", "--add-provider", "--", builder.String())
 
 	return cmd.Run()
+}
+
+func checkGitDirectoryOrThrow() {
+	if _, err := os.Stat(gitDirectory); os.IsNotExist(err) {
+		log.Fatalln(errors.New("it isn't root directory (.git not found)"))
+	}
 }

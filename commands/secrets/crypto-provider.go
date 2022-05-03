@@ -1,7 +1,6 @@
 package secrets
 
 import (
-	"errors"
 	"github.com/ProtonMail/gopenpgp/v2/helper"
 	"log"
 	"os"
@@ -35,9 +34,7 @@ func MakeGpgCryptoProvider(passphrase []byte) CryptoProvider {
 }
 
 func (p *GpgCryptoProvider) generateKey() error {
-	if _, err := os.Stat(gitDirectory); os.IsNotExist(err) {
-		return errors.New("it isn't root directory (.git not found)")
-	}
+	checkGitDirectoryOrThrow()
 
 	if _, err := os.Stat(AppDirectory); os.IsNotExist(err) {
 		err = os.Mkdir(AppDirectory, os.ModePerm)
