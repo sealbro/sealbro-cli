@@ -34,6 +34,38 @@ func main() {
 				},
 				Subcommands: []*cli.Command{
 					{
+						Name:  "copy",
+						Usage: "copy recursive Vault KV secrets",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "from",
+								Usage:    "KV name from copy",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "to",
+								Usage:    "KV name to copy",
+								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "clean-from",
+								Usage: "drop KV from after copy",
+							},
+							&cli.BoolFlag{
+								Name:  "clean-to",
+								Usage: "drop KV to before copy",
+							},
+						},
+						Action: func(c *cli.Context) error {
+							from := c.String("from")
+							to := c.String("to")
+							cleanFrom := c.Bool("clean-from")
+							cleanTo := c.Bool("clean-to")
+
+							return command.Copy(from, to, cleanFrom, cleanTo)
+						},
+					},
+					{
 						Name:  "show",
 						Usage: "print secrets to stdout",
 						Flags: encryptFlags,

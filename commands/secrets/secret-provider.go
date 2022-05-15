@@ -10,16 +10,20 @@ import (
 )
 
 type SecretProvider interface {
-	GetAllSecrets() ([]string, error)
+	GetAllUniqSecrets(paths []string) ([]string, error)
+	DeepCopyKV(from, to string) error
 }
 
 type VaultSecretProvider struct {
 	client   *vault.Client
-	paths    []string
 	excludes map[string]struct{}
 }
 
-func MakeVaultSecretProvider(paths, excludes []string) SecretProvider {
+type secretKeyValue struct {
+	path, key, value string
+}
+
+func MakeVaultSecretProvider(excludes []string) SecretProvider {
 	config := vault.DefaultConfig()
 	config.Timeout = time.Second * 10
 
@@ -37,35 +41,69 @@ func MakeVaultSecretProvider(paths, excludes []string) SecretProvider {
 		mapExcludes[exclude] = struct{}{}
 	}
 
-	return &VaultSecretProvider{client: client, paths: paths, excludes: mapExcludes}
+	return &VaultSecretProvider{client: client, excludes: mapExcludes}
 }
 
-func (p *VaultSecretProvider) GetAllSecrets() ([]string, error) {
-	if len(p.paths) == 0 {
+func (p *VaultSecretProvider) DeepCopyKV(from, to string) error {
+	secretKeyValues, err := p.getSecrets([]string{from})
+	if err != nil {
+		return err
+	}
+
+	for _, keyValue := range secretKeyValues {
+		log.Println(keyValue.path, keyValue.key, keyValue.value)
+	}
+
+	return err
+}
+
+func (p *VaultSecretProvider) GetAllUniqSecrets(paths []string) ([]string, error) {
+	secretKeyValues, err := p.getSecrets(paths)
+	if err != nil {
+		return nil, err
+	}
+	uniqSecrets := make(map[string]struct{})
+
+	for _, secret := range secretKeyValues {
+		uniqSecrets[secret.value] = struct{}{}
+	}
+
+	var secretsList []string
+	for key := range uniqSecrets {
+		secretsList = append(secretsList, key)
+	}
+
+	return secretsList, err
+}
+
+func (p *VaultSecretProvider) getSecrets(paths []string) ([]secretKeyValue, error) {
+	if len(paths) == 0 {
 		return nil, errors.New("arg path empty")
 	}
 
 	wgVaultRequests := sync.WaitGroup{}
-	secretChan := make(chan string)
-	uniqSecretsChan := make(chan []string)
+	secretChan := make(chan secretKeyValue)
+	uniqSecretsChan := make(chan []secretKeyValue)
 	defer close(uniqSecretsChan)
 
-	go collectSecrets(&wgVaultRequests, secretChan, uniqSecretsChan)
+	go collectSecretKeyValues(&wgVaultRequests, secretChan, uniqSecretsChan)
 
 	var err error
 
-	wgVaultRequests.Add(len(p.paths))
-	for _, path := range p.paths {
+	wgVaultRequests.Add(len(paths))
+	for _, path := range paths {
 		p.getRecursiveUniqSecrets(&wgVaultRequests, secretChan, path)
 	}
 	wgVaultRequests.Wait()
 	close(secretChan)
 
-	return <-uniqSecretsChan, err
+	secretKeyValues := <-uniqSecretsChan
+
+	return secretKeyValues, err
 }
 
-func collectSecrets(wgVaultRequests *sync.WaitGroup, secretChan <-chan string, uniqSecretsChan chan<- []string) {
-	uniqSecrets := make(map[string]struct{})
+func collectSecretKeyValues(wgVaultRequests *sync.WaitGroup, secretChan <-chan secretKeyValue, uniqSecretsChan chan<- []secretKeyValue) {
+	var secretsList []secretKeyValue
 
 	for {
 		secret, ok := <-secretChan
@@ -73,20 +111,14 @@ func collectSecrets(wgVaultRequests *sync.WaitGroup, secretChan <-chan string, u
 			break
 		}
 
-		uniqSecrets[secret] = struct{}{}
+		secretsList = append(secretsList, secret)
 		wgVaultRequests.Done()
-	}
-
-	var secretsList []string
-
-	for value := range uniqSecrets {
-		secretsList = append(secretsList, value)
 	}
 
 	uniqSecretsChan <- secretsList
 }
 
-func (p *VaultSecretProvider) getRecursiveUniqSecrets(wgVaultRequests *sync.WaitGroup, secretChan chan<- string, path string) {
+func (p *VaultSecretProvider) getRecursiveUniqSecrets(wgVaultRequests *sync.WaitGroup, secretChan chan<- secretKeyValue, path string) {
 	defer wgVaultRequests.Done()
 
 	if path[len(path)-1] != '/' {
@@ -101,7 +133,11 @@ func (p *VaultSecretProvider) getRecursiveUniqSecrets(wgVaultRequests *sync.Wait
 			}
 
 			wgVaultRequests.Add(1)
-			secretChan <- value.(string)
+			secretChan <- secretKeyValue{
+				path:  path,
+				key:   key,
+				value: value.(string),
+			}
 		}
 
 		return

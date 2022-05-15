@@ -12,15 +12,27 @@ import (
 type SecretCommand struct {
 }
 
-func (c SecretCommand) Show(passphrase string, paths []string, excludes []string) (string, error) {
+func (c *SecretCommand) Copy(from, to string, cleanFrom, cleanTo bool) error {
+	// get secrets recursive from KV
+	// check exists KV
+	// copy secrets to new KV
+	// drop old KV
+
+	secretProvider := MakeVaultSecretProvider([]string{})
+	err := secretProvider.DeepCopyKV(fmt.Sprintf("/%s/", from), fmt.Sprintf("/%v/", to))
+
+	return err
+}
+
+func (c *SecretCommand) Show(passphrase string, paths []string, excludes []string) (string, error) {
 	cryptoProvider := MakeGpgCryptoProvider(generatePassphrase(passphrase, paths, excludes))
 
 	decrypt, err := cryptoProvider.Decrypt()
 	if err != nil {
 		CleanSecretsCache()
 
-		secretProvider := MakeVaultSecretProvider(paths, excludes)
-		allSecrets, err := secretProvider.GetAllSecrets()
+		secretProvider := MakeVaultSecretProvider(excludes)
+		allSecrets, err := secretProvider.GetAllUniqSecrets(paths)
 		if err != nil {
 			return "", err
 		}
@@ -41,8 +53,8 @@ func (c *SecretCommand) Verify(passphrase string, paths []string, excludes []str
 	}
 	log.Println("Clean cache")
 
-	secretProvider := MakeVaultSecretProvider(paths, excludes)
-	allSecrets, err := secretProvider.GetAllSecrets()
+	secretProvider := MakeVaultSecretProvider(excludes)
+	allSecrets, err := secretProvider.GetAllUniqSecrets(paths)
 	if err != nil {
 		return err
 	}
