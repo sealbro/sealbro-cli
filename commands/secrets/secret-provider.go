@@ -2,9 +2,11 @@ package secrets
 
 import (
 	"errors"
+	"fmt"
 	vault "github.com/hashicorp/vault/api"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -122,12 +124,23 @@ func (p *VaultSecretProvider) getRecursiveUniqSecrets(wgVaultRequests *sync.Wait
 	defer wgVaultRequests.Done()
 
 	if path[len(path)-1] != '/' {
-		read, err := p.client.Logical().Read(path)
+
+		// kv2
+		correctedPath := strings.Replace(path, "metadata/", "data/", 1)
+
+		read, err := p.client.Logical().Read(correctedPath)
 		if err != nil {
 			log.Fatalf("cann't read secret from vault: %v", err)
 		}
 
-		for key, value := range read.Data {
+		var data map[string]interface{}
+		if correctedPath != path {
+			data = read.Data["data"].(map[string]interface{})
+		} else {
+			data = read.Data
+		}
+
+		for key, value := range data {
 			if _, ok := p.excludes[key]; ok {
 				continue
 			}
@@ -136,7 +149,7 @@ func (p *VaultSecretProvider) getRecursiveUniqSecrets(wgVaultRequests *sync.Wait
 			secretChan <- secretKeyValue{
 				path:  path,
 				key:   key,
-				value: value.(string),
+				value: fmt.Sprintf("%v", value),
 			}
 		}
 
