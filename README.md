@@ -42,3 +42,6 @@ Stdout vault provider for [git-secrets](https://github.com/awslabs/git-secrets)
   - `rm -rf $GOPATH/bin/sealbro-cli`
 - remove from git config
   - `git config [--global] --unset secrets.providers`
+- location git config
+  - global `cat ~/.gitconfig`
+  - local `cat ./.git/config`
